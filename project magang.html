@@ -1,0 +1,382 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Rekap Absensi - PT Pertamina Geothermal Energy</title>
+    <!-- Library eksternal -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 0;
+            background-color: #f4f4f4;
+        }
+        header {
+            background-color: #007bff;
+            color: white;
+            text-align: center;
+            padding: 20px;
+        }
+        header img {
+            max-width: 400px;
+            margin-bottom: 10px;
+        }
+        .login {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            background-color: #f4f4f4;
+        }
+        .login form {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 0 10px rgba(0,0,0,0.1);
+        }
+        .dashboard {
+            display: none;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 20px auto;
+            padding: 20px;
+            background-color: white;
+            border-radius: 8px;
+            box-shadow: 0 0 10px rgba(0,0,0,0.1);
+        }
+        .stats {
+            display: flex;
+            justify-content: space-around;
+            margin-bottom: 20px;
+        }
+        .stat {
+            text-align: center;
+            padding: 10px;
+            background: #e9ecef;
+            border-radius: 5px;
+        }
+        .filters {
+            margin-bottom: 20px;
+        }
+        .filters select, .filters input {
+            margin-right: 10px;
+            padding: 5px;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 20px;
+        }
+        th, td {
+            border: 1px solid #ddd;
+            padding: 8px;
+            text-align: left;
+        }
+        th {
+            background-color: #f2f2f2;
+        }
+        .actions button {
+            margin-right: 5px;
+            padding: 5px 10px;
+        }
+        .download-btn {
+            margin-top: 20px;
+            padding: 10px 20px;
+            background-color: #28a745;
+            color: white;
+            border: none;
+            cursor: pointer;
+        }
+        .download-btn:hover {
+            background-color: #218838;
+        }
+        footer {
+            text-align: center;
+            padding: 10px;
+            background-color: #007bff;
+            color: white;
+            position: fixed;
+            width: 100%;
+            bottom: 0;
+        }
+        @media (max-width: 768px) {
+            .stats {
+                flex-direction: column;
+            }
+            table {
+                font-size: 12px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div id="loginSection" class="login">
+        <form id="loginForm">
+            <h2>Login ke Sistem Rekap Absensi</h2>
+            <input type="text" id="username" placeholder="Username" required><br><br>
+            <input type="password" id="password" placeholder="Password" required><br><br>
+            <button type="submit">Login</button>
+        </form>
+    </div>
+
+    <div id="dashboard" class="dashboard">
+        <header>
+            <img src="c:\Users\sweet\Downloads\l_LOGO PGE WARNA HORIZONTAL.png" alt="Logo PT Pertamina Geothermal Energy">
+            <h1>Rekap Absensi Karyawan</h1>
+            <p>PT Pertamina Geothermal Energy</p>
+            <button onclick="logout()">Logout</button>
+        </header>
+
+        <div class="container">
+            <h2>Dashboard Rekap Absensi</h2>
+            <div class="upload-section">
+                <input type="file" id="excelFile" accept=".xlsx, .xls">
+                <button onclick="processExcel()">Proses File Excel</button>
+            </div>
+
+            <div id="statsSection" class="stats" style="display: none;">
+                <div class="stat"><h3>Hadir</h3><p id="hadirCount">0</p></div>
+                <div class="stat"><h3>Izin</h3><p id="izinCount">0</p></div>
+                <div class="stat"><h3>Alpha</h3><p id="alphaCount">0</p></div>
+            </div>
+
+            <canvas id="chart" width="400" height="200" style="display: none;"></canvas>
+
+            <div class="filters">
+                <select id="monthFilter">
+                    <option value="">Pilih Bulan</option>
+                </select>
+                <select id="statusFilter">
+                    <option value="">Semua Status</option>
+                    <option value="Hadir">Hadir</option>
+                    <option value="Izin">Izin</option>
+                    <option value="Alpha">Alpha</option>
+                </select>
+                <input type="text" id="searchInput" placeholder="Cari nama...">
+                <button onclick="applyFilters()">Terapkan Filter</button>
+            </div>
+
+            <table id="absensiTable" style="display: none;">
+                <thead>
+                    <tr>
+                        <th>Nama Karyawan</th>
+                        <th>Jabatan</th>
+                        <th>Tanggal</th>
+                        <th>Status Absensi</th>
+                        <th>Keterangan</th>
+                        <th class="actions">Aksi</th>
+                    </tr>
+                </thead>
+                <tbody id="tableBody"></tbody>
+            </table>
+
+            <div id="downloadSection" style="display: none;">
+                <button class="download-btn" onclick="downloadPDF()">Unduh sebagai PDF</button>
+                <button class="download-btn" onclick="downloadCSV()">Unduh sebagai CSV</button>
+            </div>
+        </div>
+
+        <footer>
+            <p>&copy; 2025 PT Pertamina Geothermal Energy. Semua hak dilindungi.</p>
+        </footer>
+    </div>
+
+    <script>
+        let allData = []; // Data lengkap dari Excel
+        let filteredData = []; // Data yang difilter
+        let chart; // Grafik Chart.js
+
+        // Login simulasi
+        document.getElementById('loginForm').addEventListener('submit', function(e) {
+            e.preventDefault();
+            const username = document.getElementById('username').value;
+            const password = document.getElementById('password').value;
+            if (username === 'admin' && password === 'pertamina') {
+                document.getElementById('loginSection').style.display = 'none';
+                document.getElementById('dashboard').style.display = 'block';
+                loadStoredData(); // Muat data dari localStorage jika ada
+            } else {
+                alert('Username atau password salah!');
+            }
+        });
+
+        function logout() {
+            document.getElementById('dashboard').style.display = 'none';
+            document.getElementById('loginSection').style.display = 'flex';
+        }
+
+        function processExcel() {
+            const fileInput = document.getElementById('excelFile');
+            const file = fileInput.files[0];
+            if (!file) {
+                alert('Pilih file Excel terlebih dahulu!');
+                return;
+            }
+
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                const data = new Uint8Array(e.target.result);
+                const workbook = XLSX.read(data, { type: 'array' });
+                const sheetName = workbook.SheetNames[0];
+                const worksheet = workbook.Sheets[sheetName];
+                allData = XLSX.utils.sheet_to_json(worksheet);
+
+                // Validasi kolom dasar
+                if (!allData[0] || !allData[0]['Tanggal']) {
+                    alert('File Excel tidak valid! Pastikan ada kolom "Tanggal".');
+                    return;
+                }
+
+                localStorage.setItem('absensiData', JSON.stringify(allData)); // Simpan ke localStorage
+                displayData(allData);
+                updateStats(allData);
+                updateChart(allData);
+                populateMonthFilter(allData);
+            };
+            reader.readAsArrayBuffer(file);
+        }
+
+        function loadStoredData() {
+            const stored = localStorage.getItem('absensiData');
+            if (stored) {
+                allData = JSON.parse(stored);
+                displayData(allData);
+                updateStats(allData);
+                updateChart(allData);
+                populateMonthFilter(allData);
+            }
+        }
+
+        function displayData(data) {
+            const tableBody = document.getElementById('tableBody');
+            tableBody.innerHTML = '';
+            data.forEach((row, index) => {
+                const tr = document.createElement('tr');
+                tr.innerHTML = `
+                    <td>${row['Nama Karyawan'] || '-'}</td>
+                    <td>${row['Jabatan'] || '-'}</td>
+                    <td>${row['Tanggal'] || '-'}</td>
+                    <td>${row['Status Absensi'] || '-'}</td>
+                    <td>${row['Keterangan'] || '-'}</td>
+                    <td class="actions">
+                        <button onclick="editRow(${index})">Edit</button>
+                        <button onclick="deleteRow(${index})">Hapus</button>
+                    </td>
+                `;
+                tableBody.appendChild(tr);
+            });
+            document.getElementById('absensiTable').style.display = 'table';
+            document.getElementById('downloadSection').style.display = 'block';
+        }
+
+        function updateStats(data) {
+            let hadir = 0, izin = 0, alpha = 0;
+            data.forEach(row => {
+                if (row['Status Absensi'] === 'Hadir') hadir++;
+                else if (row['Status Absensi'] === 'Izin') izin++;
+                else if (row['Status Absensi'] === 'Alpha') alpha++;
+            });
+            document.getElementById('hadirCount').textContent = hadir;
+            document.getElementById('izinCount').textContent = izin;
+            document.getElementById('alphaCount').textContent = alpha;
+            document.getElementById('statsSection').style.display = 'flex';
+        }
+
+        function updateChart(data) {
+            const ctx = document.getElementById('chart').getContext('2d');
+            const monthlyStats = {};
+            data.forEach(row => {
+                const month = row['Tanggal'] ? row['Tanggal'].substring(0, 7) : 'Unknown';
+                if (!monthlyStats[month]) monthlyStats[month] = { hadir: 0, izin: 0, alpha: 0 };
+                if (row['Status Absensi'] === 'Hadir') monthlyStats[month].hadir++;
+                else if (row['Status Absensi'] === 'Izin') monthlyStats[month].izin++;
+                else if (row['Status Absensi'] === 'Alpha') monthlyStats[month].alpha++;
+            });
+
+            const labels = Object.keys(monthlyStats);
+            const hadirData = labels.map(m => monthlyStats[m].hadir);
+            const izinData = labels.map(m => monthlyStats[m].izin);
+            const alphaData = labels.map(m => monthlyStats[m].alpha);
+
+            if (chart) chart.destroy();
+            chart = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: labels,
+                    datasets: [
+                        { label: 'Hadir', data: hadirData, backgroundColor: 'green' },
+                        { label: 'Izin', data: izinData, backgroundColor: 'yellow' },
+                        { label: 'Alpha', data: alphaData, backgroundColor: 'red' }
+                    ]
+                }
+            });
+            document.getElementById('chart').style.display = 'block';
+        }
+
+        function populateMonthFilter(data) {
+            const select = document.getElementById('monthFilter');
+            select.innerHTML = '<option value="">Pilih Bulan</option>';
+            const months = [...new Set(data.map(row => row['Tanggal'] ? row['Tanggal'].substring(0, 7) : ''))];
+            months.forEach(month => {
+                if (month) select.innerHTML += `<option value="${month}">${month}</option>`;
+            });
+        }
+
+        function applyFilters() {
+            const month = document.getElementById('monthFilter').value;
+            const status = document.getElementById('statusFilter').value;
+            const search = document.getElementById('searchInput').value.toLowerCase();
+            filteredData = allData.filter(row => {
+                const rowMonth = row['Tanggal'] ? row['Tanggal'].substring(0, 7) : '';
+                const rowStatus = row['Status Absensi'] || '';
+                const rowName = (row['Nama Karyawan'] || '').toLowerCase();
+                return (!month || rowMonth === month) &&
+                       (!status || rowStatus === status) &&
+                       (!search || rowName.includes(search));
+            });
+            displayData(filteredData);
+            updateStats(filteredData);
+        }
+
+        function editRow(index) {
+            const row = allData[index];
+            const newName = prompt('Edit Nama:', row['Nama Karyawan']);
+            if (newName) {
+                allData[index]['Nama Karyawan'] = newName;
+                localStorage.setItem('absensiData', JSON.stringify(allData));
+                displayData(allData);
+            }
+        }
+
+        function deleteRow(index) {
+            if (confirm('Hapus data ini?')) {
+                allData.splice(index, 1);
+                localStorage.setItem('absensiData', JSON.stringify(allData));
+                displayData(allData);
+                updateStats(allData);
+            }
+        }
+
+        function downloadPDF() {
+            const element = document.getElementById('absensiTable');
+            html2pdf().from(element).save('Rekap_Absensi.pdf');
+        }
+
+        function downloadCSV() {
+            const csv = XLSX.utils.sheet_to_csv(XLSX.utils.json_to_sheet(filteredData.length ? filteredData : allData));
+            const blob = new Blob([csv], { type: 'text/csv' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'Rekap_Absensi.csv';
+            a.click();
+        }
+    </script>
+</body>
+</html>
